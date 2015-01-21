@@ -2,10 +2,9 @@ from scipy import stats
 from sklearn import preprocessing
 
 def standardize(df, columns):
-	standardized_df = df.copy()
 	for i in columns:
-		standardized_df[i] = preprocessing.scale(standardized_df[i])
-	return standardized_df
+		df[i] = preprocessing.scale(df[i])
+	return df
 
 def box_cox(var):
 	num = 0
@@ -15,7 +14,11 @@ def box_cox(var):
 	elif var.min() > 0:
 		vart, lambda_ = stats.boxcox(var)
 	stats.probplot(vart, dist=stats.norm)
-	return vart, (lambda_, num)
+	return vart, lambda_, num
+
+def reverse_box_cox(tvar, lambda_, c):
+	var = np.power((tvar * lambda_) + 1, 1 / lambda_) - c
+	return var
 
 # not sure if reciprocal implementation is correct
 

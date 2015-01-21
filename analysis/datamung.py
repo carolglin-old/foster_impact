@@ -1,17 +1,15 @@
 import pandas as pd
 import numpy as np
 
-root = '/Users/carollin/Dev/foster_impact/data' 
-
 # load and trim data
 
-def load_csv(filepath):
+def load_csv(root, filepath):
 	data = pd.read_csv(root+filepath, na_values=['na'])
 	return data
 
 def segment_data(df, lower_val, upper_val, column_to_segment):
 	column = getattr(df, column_to_segment)
-	seg_data = df[(column>=lower_value) & (column<=upper_value)]
+	seg_data = df[(column>=lower_val) & (column<=upper_val)]
 	return seg_data
 
 def drop_na(df, column_list):
@@ -32,24 +30,22 @@ def uniques_to_list(df, column):
 
 # add columns
 
-def add_count_column(df, column_to_count, new_column_name):
+def add_count(df, column_to_count):
 	count = df.groupby(column_to_count).size()
-	count_df = pd.DataFrame(count, columns=[new_column_name]).reset_index()
-	merged_df = pd.merge(df, count_df, how='left', on=column_to_count)
-	return merged_df
+	count_df = pd.DataFrame(count, columns=['count']).reset_index()
+	return count_df['count']
 
-def add_order_column(df, column_to_order, date):
-	new_df = df.sort([column_to_order, date])
+def add_order(df, column_to_order, date_column):
+	new_df = df.sort([column_to_order, date_column])
 	ordered = new_df.groupby(column_to_order).cumcount()
 	return ordered
 
-def add_avg_column(df, column_to_group, column_to_avg, new_column_name):
+def add_avg(df, column_to_group, column_to_avg):
 	avg = df.groupby(column_to_group)[column_to_avg].mean()
-	avg_df = pd.DataFrame(avg.values, index=avg.index, columns=[new_column_name]).reset_index()
-	merged_df = pd.merge(df, avg_df, how='left', on=column_to_group)
-	return merged_df
+	avg_df = pd.DataFrame(avg.values, index=avg.index, columns=['avg']).reset_index()
+	return avg_df['avg']
 
-def subt_day_column(date_column1, date_column2):
+def subt_day(date_column1, date_column2):
 	diff = ((date_column1 - date_column2) / np.timedelta64(1, 'D'))
 	return diff
 
@@ -77,14 +73,8 @@ def change_type(column, end_type):
 		column = pd.to_datetime(column)
 	elif end_type == 'int':
 		column = column.astype(int)
+	return column
 
-# knock off unused columns for analysis
-
-def create_final_df(df, required_columns):
-	final_df = pd.DataFrame()
-	for i in required_columns:
-		final_df[i] = df[i]
-	return final_df
 
 
 
