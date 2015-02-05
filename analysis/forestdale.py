@@ -1,5 +1,9 @@
 from datamung import *
 from regression import *
+from datavis import *
+import numpy as np
+import datetime
+import pdb
 
 root = '/Users/carollin/Dev/foster_impact/data' 
 
@@ -77,30 +81,132 @@ def check_type(df):
 # 	percent = percent/100
 # 	return percent
 
-# analysis-specific data prep
+def create_exp_column(df, column_name, var):
+	to_join = pd.DataFrame()
+	to_join['child_id'] = df.index
+	to_join = to_join.set_index('child_id')
+	to_join[column_name] = ''
+	for idx in df.index:
+		to_join.loc[idx, column_name] = calc_avg_exp(df, idx, var)
+	to_join[column_name] = to_join[column_name].astype(float)
+	return to_join
 
-def add_order(df, column_to_order, date_column):
-	new_df = df.sort([column_to_order, date_column])
-	ordered = new_df.groupby(column_to_order).cumcount()
-	return ordered
+# def calculate_exp(df, c_id, var):
+# 	exp = []
+# 	case_start = df.loc[c_id, 'placed_dt']
+# 	case_end = df.loc[c_id, 'stat_dt']
+# 	var_id = df.loc[c_id, var]
+# 	column = getattr(df, var)
+# 	segment = df[column.isin([var_id])]
+# 	child_list = segment.index.tolist()
+# 	for child in child_list:
+# 		end_date = df.loc[child, 'stat_dt']
+# 		start_date = df.loc[child, 'placed_dt']
+# 		if start_date < case_start:
+# 			if (end_date > start_date) & (end_date <= case_end):
+# 		elif (start_date < case_start):
+# 			if end_date <= case_start:
+# 				add_exp = ((end_date - start_date).total_seconds() / (60*60*24))
+# 				start_exp += add_exp
+# 			elif end_date > case_start:
+# 				add_exp = ((case_start - start_date).total_seconds() / (60*60*24))
+# 				start_exp += add_exp
+# 	exp.append(start_exp)
 
-def order_data_prep(df):
-	df['fp_case_order'] = add_order(df, 'foster_parent', 'placed_dt')
-	df['sw_case_order'] = add_order(df, 'social_worker', 'placed_dt')
-	df['fp_case_order'] = change_type(df['fp_case_order'], 'float')
-	df['sw_case_order'] = change_type(df['sw_case_order'], 'float')
-	df['fp_case_count'] = add_count(df, 'foster_parent')
-	df['sw_case_count'] = add_count(df, 'social_worker')
-	fp_names = uniques_to_list(df, 'foster_parent')
-	sw_names = uniques_to_list(df, 'social_worker')
-	fp_same_dates_list = check_dates(fp_names, 'foster_parent', df)
-	sw_same_dates_list = check_dates(sw_names, 'social_worker', df)
-	del_fp = remove_same_date(df, 'foster_parent', fp_same_dates_list)
-	new_df = df[~del_fp]
-	del_sw = remove_same_date(df, 'social_worker', sw_same_dates_list)
-	new_df = new_df[~del_sw]
-	final_df = new_df[['duration', 'fp_case_order', 'sw_case_order', 'fp_case_count', 'sw_case_count']]
+def calc_avg_exp(df, c_id, var):
+	exp = []
+	case_start = df.loc[c_id, 'placed_dt']
+	duration = df.loc[c_id, 'duration'].astype(int)
+	var_id = df.loc[c_id, var]
+	column = getattr(df, var)
+	segment = df[column.isin([var_id])]
+	child_list = segment.index.tolist()
+	for day in range(duration): 
+		current_date = case_start + datetime.timedelta(days=day)
+		current_exp = calc_current_exp(segment, child_list, current_date)
+		exp.append(current_exp)
+	avg_exp = sum(exp)/duration
+	return avg_exp
+
+def calc_current_exp(seg, child_list, current_date):
+	current_exp = 0
+	to_days = 60*60*24
+	for child in child_list:
+		start_date = seg.loc[child, 'placed_dt']
+		end_date = seg.loc[child, 'stat_dt']
+		if start_date > current_date:
+			pass
+		elif start_date < current_date:
+			if end_date <= current_date:
+				add_exp = ((end_date - start_date).total_seconds() / to_days)
+				current_exp += add_exp
+			elif end_date > current_date:
+				add_exp = ((current_date - start_date).total_seconds() / to_days)
+				current_exp += add_exp
+	return current_exp
+
+def fix_zeros(row):
+	if row['case_order'] == 0.0:
+		row['diff'] = np.nan
+	return row
+
+def segment_results(var_id, segment, endog, exog):
+	regress = Analysis(segment, endog, [exog])
+	# regress.show_all_fit()
+	# segment = segment.sort('placed_dt')
+	# dot_plot(segment, var_id, 'child_id', 'placed_dt', 'stat_dt')
+	# pdb.set_trace()
+	if exog == 'case_order':
+		return regress, (var_id, regress.result(exog).params.case_order, regress.result(exog).rsquared_adj)
+	elif exog == 'exp':
+		return regress, (var_id, regress.result(exog).params.exp, regress.result(exog).rsquared_adj)
+
+def coef_data_prep(df, iv, endog, exog):
+	names = uniques_to_list(df, iv)
+	column = getattr(df, iv)
+	coef_list = []
+	regress_list = []
+	for n in names:
+		segment = df[column.isin([n])]
+		r, c = segment_results(n, segment, endog, exog)
+		coef_list.append(c)
+		regress_list.append(r)
+	indiv_coef = pd.DataFrame(coef_list, columns=[iv, 'coef', 'rsqu'])
+	new_df = pd.merge(df, indiv_coef, how='left', on=iv)
+	return new_df, indiv_coef, regress_list
+
+def show_attributes(regress_list, restrictions=None):
+	for r in regress_list:
+		r.show_all_fit()
+		r.show_all_results()
+
+# analysis-specific data prep functions
+def order_data_prep(df, iv):
+	names = uniques_to_list(df, iv)
+	same_dates_list = check_dates(names, iv, df)
+	to_del = remove_same_date(df, iv, same_dates_list)
+	new_df = df[~to_del]
+	new_df['case_order'] = add_order(new_df, iv, 'placed_dt')
+	new_df['case_order'] = change_type(new_df['case_order'], 'float')
+	new_df = add_count(new_df, iv, 'case_count')
+	final_df = new_df[['child_id', 'foster_parent', 'social_worker', 'duration', 'case_order', 'case_count', 'placed_dt', 'stat_dt']]
 	return final_df
+
+def exp_data_prep(df, iv):
+	df.set_index('child_id')
+	df = add_count(df, iv, 'case_count')
+	exp = create_exp_column(df, 'avg_exp', iv)
+	new_df = pd.merge(df, exp, left_index=True, right_index=True)
+	final_df = new_df[['child_id', 'foster_parent', 'social_worker', 'duration', 'avg_exp', 'case_count', 'placed_dt', 'stat_dt']]
+	return final_df
+
+def change_data_prep(df, iv):
+	new_df = order_data_prep(df, iv)
+	new_df = new_df.sort([iv, 'case_order'])
+	new_df['diff'] = new_df['duration'].diff()
+	new_df = new_df.apply(fix_zeros, axis=1)
+	# final_df = drop_na(new_df, ['diff'])
+	return new_df
 
 # create columns/combine csv files
 # intakes = load_csv(root, '/csv/intakes.csv')
@@ -149,17 +255,57 @@ def order_data_prep(df):
 # pos = clean[clean.outcome==1]
 # pos.to_csv(root+'/working/clean_pos.csv')
 
-# order analysis
 pos = load_csv(root, '/working/clean_pos.csv')
 pos = check_type(pos)
 
 # trimming and segmenting data
-trim = drop_na(pos, ['social_worker'])
-trim = segment_data(trim, 30, trim['duration'].max(), 'duration')
+clean_fp = drop_na(pos, ['foster_parent'])
+trim_fp = segment_data(clean_fp, 30, clean_fp['duration'].max(), 'duration')
+clean_sw = drop_na(pos, ['social_worker'])
+trim_sw = segment_data(clean_sw, 30, clean_sw['duration'].max(), 'duration')
 
-order = order_data_prep(trim) 
+# order analysis
+order_fp = order_data_prep(clean_fp, 'foster_parent') 
+order_analysis_fp = Analysis(order_fp, 'duration', ['case_order'])
 
-order_analysis = Analysis(order, 'duration', ['fp_case_order', 'sw_case_order'])
+order_sw = order_data_prep(clean_sw, 'social_worker')
+order_analysis_sw = Analysis(order_sw, 'duration', ['case_order'])
+
+torder_fp = order_data_prep(trim_fp, 'foster_parent') 
+torder_analysis_fp = Analysis(order_fp, 'duration', ['case_order'])
+
+torder_sw = order_data_prep(trim_sw, 'social_worker')
+torder_analysis_sw = Analysis(order_sw, 'duration', ['case_order'])
+
+# rate of improvement
+slim_sw = torder_sw[torder_sw['case_count']>3]
+coef_sw, imp_sw, r_list = coef_data_prep(slim_sw, 'social_worker', 'duration', 'case_order')
+
+# summary statistics about order
+test1 = order_sw.groupby(order_sw['placed_dt'].map(lambda x: x.year))['duration'].mean()
+test2 = order_sw.groupby(order_sw['placed_dt'].map(lambda x: x.year))['duration'].std()
+test3 = order_sw.groupby(order_sw['placed_dt'].map(lambda x: x.year)).size()
+
+test_df = slim_sw[(slim_sw['placed_dt']>datetime.date(2005,01,01)) & (slim_sw['placed_dt']<datetime.date(2012,12,31))]
+coef_test, imp_test, r_test = coef_data_prep(test_df, 'social_worker', 'duration', 'case_order')
+
+# # time experience analysis
+# exp_fp = exp_data_prep(clean_fp, 'foster_parent')
+# exp_sw = exp_data_prep(clean_sw, 'social_worker')
+
+# exp_analysis_fp = Analysis(exp_fp, 'duration', ['exp'])
+# exp_analysis_sw = Analysis(exp_sw, 'duration', ['exp'])
+
+# unclip = drop_na(pos, ['social_worker'])
+# exp_unclip = exp_data_prep(unclip)
+# exp_u_analysis = Analysis(exp_unclip, 'duration', ['fp_exp', 'sw_exp'])
+
+# # subsequent change analysis
+# change_fp = change_data_prep(trim_fp, 'foster_parent')
+
+# social worker attributes
+
+# foster parent attributes
 
 
 

@@ -2,9 +2,10 @@ from scipy import stats
 from sklearn import preprocessing
 
 def standardize(df, columns):
+	new_df = df.copy()
 	for i in columns:
-		df[i] = preprocessing.scale(df[i])
-	return df
+		new_df[i] = preprocessing.scale(new_df[i])
+	return new_df
 
 def box_cox(var):
 	num = 0

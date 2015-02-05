@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 
 from transform import *
 
-def gen_hist(df, column_list):
+def gen_hist(df, column_list, cumulative=False):
 	for column in column_list:
-		df[column].hist(bins=100)
+		df[column].hist(bins=250, cumulative=cumulative)
 		plt.title(column+' n='+str(len(df)))
 		plt.show()
 
@@ -59,7 +59,8 @@ class Analysis:
 		self.endog = endog
 		self.exog_list = exog_list
 		self.std_list = self.create_std_list()
-		self.data = standardize(data, self.std_list)	
+		self.data = data
+		self.std_data = standardize(data, self.std_list)	
 		
 	def create_std_list(self):
 		std_list = []
@@ -81,11 +82,15 @@ class Analysis:
 		t_var, lambda_, c = boxcox(var)
 		return lambda_, c
 
-	def result(self, exog, transform=False):
-		if transform:
-			r = sols_result(self.transform(self.data[self.endog]), self.data[exog])
+	def result(self, exog, std=False, transform=False):
+		if std:
+			data = self.std_data
 		else:
-			r = sols_result(self.data[self.endog], self.data[exog])
+			data = self.data
+		if transform:
+			r = sols_result(self.transform(data[self.endog]), data[exog])
+		else:
+			r = sols_result(data[self.endog], data[exog])
 		return r
 
 	def all_results(self, transform=False):
@@ -107,14 +112,14 @@ class Analysis:
 		for result in results_list:
 			print result
 
-	def show_all_hist(self, transform=False):
+	def show_all_hist(self, transform=False, cumulative=False):
 		if transform:
 			data = pd.DataFrame()
 			for var in self.std_list:
 				data[var] = self.transform(self.data[var])
 		else:
 			data = self.data
-		gen_hist(data, self.std_list)
+		gen_hist(data, self.std_list, cumulative)
 
 	def show_all_fit(self, transform=False):
 		results_list = self.all_results(transform)
