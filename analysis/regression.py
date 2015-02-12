@@ -42,6 +42,9 @@ def plot_sols_result(results):
 	plt.plot(x_line, y_predict, 'r', alpha=0.9)
 	plt.show()
 
+def summary_stats(column):
+	return 'min ', column.min(), 'med ', column.median(), 'avg ', column.mean(), 'max ', column.max()
+
 def find_best_rsquared(results_list):
 	best = 0
 	end_result = []

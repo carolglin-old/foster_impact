@@ -38,13 +38,13 @@ def add_count(df, column_to_count, new_name):
 
 def add_order(df, column_to_order, date_column):
 	new_df = df.sort([column_to_order, date_column])
-	ordered = new_df.groupby(column_to_order).cumcount()
-	return ordered
+	new_df['order'] = new_df.groupby(column_to_order).cumcount()
+	return new_df
 
-def add_avg(df, column_to_group, column_to_avg):
+def add_avg(df, column_to_group, column_to_avg, new_column_name):
 	avg = df.groupby(column_to_group)[column_to_avg].mean()
-	avg_df = pd.DataFrame(avg.values, index=avg.index, columns=['avg']).reset_index()
-	df = pdf.merge(df, avg_df, how='left', on=column_to_group)
+	avg_df = pd.DataFrame(avg.values, index=avg.index, columns=[new_column_name]).reset_index()
+	df = pd.merge(df, avg_df, how='left', on=column_to_group)
 	return df
 
 def subt_day(date_column1, date_column2):

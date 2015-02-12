@@ -165,15 +165,13 @@ def coef_data_prep(df, iv, endog, exog):
 	names = uniques_to_list(df, iv)
 	column = getattr(df, iv)
 	coef_list = []
-	regress_list = []
 	for n in names:
 		segment = df[column.isin([n])]
 		r, c = segment_results(n, segment, endog, exog)
 		coef_list.append(c)
-		regress_list.append(r)
 	indiv_coef = pd.DataFrame(coef_list, columns=[iv, 'coef', 'rsqu'])
 	new_df = pd.merge(df, indiv_coef, how='left', on=iv)
-	return new_df, indiv_coef, regress_list
+	return new_df, indiv_coef
 
 def show_attributes(regress_list, restrictions=None):
 	for r in regress_list:
@@ -189,7 +187,7 @@ def order_data_prep(df, iv):
 	new_df['case_order'] = add_order(new_df, iv, 'placed_dt')
 	new_df['case_order'] = change_type(new_df['case_order'], 'float')
 	new_df = add_count(new_df, iv, 'case_count')
-	final_df = new_df[['child_id', 'foster_parent', 'social_worker', 'duration', 'case_order', 'case_count', 'placed_dt', 'stat_dt']]
+	final_df = new_df[['child_id', 'foster_parent', 'social_worker', 'duration', 'case_order', 'case_count', 'placed_dt', 'stat_dt', 'term', 'sw_age', 'overall_2014', 'overall_2013']]
 	return final_df
 
 def exp_data_prep(df, iv):
@@ -277,17 +275,17 @@ torder_analysis_fp = Analysis(order_fp, 'duration', ['case_order'])
 torder_sw = order_data_prep(trim_sw, 'social_worker')
 torder_analysis_sw = Analysis(order_sw, 'duration', ['case_order'])
 
-# rate of improvement
+# individual improvement
 slim_sw = torder_sw[torder_sw['case_count']>3]
-coef_sw, imp_sw, r_list = coef_data_prep(slim_sw, 'social_worker', 'duration', 'case_order')
+coef_sw, imp_sw = coef_data_prep(slim_sw, 'social_worker', 'duration', 'case_order')
 
-# summary statistics about order
+# removing years before 2005 and after 2012
 test1 = order_sw.groupby(order_sw['placed_dt'].map(lambda x: x.year))['duration'].mean()
 test2 = order_sw.groupby(order_sw['placed_dt'].map(lambda x: x.year))['duration'].std()
 test3 = order_sw.groupby(order_sw['placed_dt'].map(lambda x: x.year)).size()
 
 test_df = slim_sw[(slim_sw['placed_dt']>datetime.date(2005,01,01)) & (slim_sw['placed_dt']<datetime.date(2012,12,31))]
-coef_test, imp_test, r_test = coef_data_prep(test_df, 'social_worker', 'duration', 'case_order')
+coef_test, imp_test = coef_data_prep(test_df, 'social_worker', 'duration', 'case_order')
 
 # # time experience analysis
 # exp_fp = exp_data_prep(clean_fp, 'foster_parent')

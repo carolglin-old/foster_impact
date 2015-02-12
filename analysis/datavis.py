@@ -1,4 +1,5 @@
 from bokeh.plotting import *
+from bokeh.embed import notebook_div
 import pdb
 
 # zeros = [0] * len(xs)
@@ -49,21 +50,19 @@ import pdb
 # 		self.x_end = x_end
 # 		self.output = output_file(html_name, title=html_name)
 
-def dot_plot(self, var_name):
-	output_file('dotplot.html', title=iv)
+def dot_plot(df, var, y_vals, x_start, x_end):
+	output_notebook()
 	yv = df[y_vals].astype(str).tolist()
 	xs = df[x_start].tolist()
 	xe = df[x_end].tolist()
-	# y_range = [yv]
 	x_range = [df[x_start].min(), df[x_end].max()]
 	p1 = figure(
-		title=iv+str(len(df)), 
+		title=var, 
 		tools='resize,save,lasso_select,pan,hover', 
 		y_range=yv, 
 		x_range=x_range
 	)
 	p1.segment(xs, yv, xe, yv, line_width=6, line_color='green', )
-	# p1.circle(xe, yv, size=10, fill_color='orange', line_color='green', line_width=2)
 	show(p1)
 
 
